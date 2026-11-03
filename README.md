@@ -167,6 +167,8 @@ log to standard error only.
 
 ## For agents: MCP, CLI and the control channel
 
+The web build also exposes a same-origin `postMessage` bridge for an embedding site's Agent sidebar. Requests use `amaranton:agent:request` with a JSON string `payload` containing `id`, `session`, `method`, and `params`; responses use `amaranton:agent:reply`. `begin` snapshots the active workbook and pauses manual input; `inspect`, `read`, `commands`, and whitelisted `execute` operations act on that same workbook. `end` releases input, and `undo` restores the snapshot only while the document identity and revision still match. Repeated request IDs return their cached reply. The host supplies authentication, model orchestration and UI; this bridge is not a standalone MCP network endpoint. See `apps/gridcraft-web/src/agent.rs` for the allowed commands and protocol implementation.
+
 ```sh
 claude mcp add gridcraft -- gridcraft-cli mcp                 # headless MCP server
 gridcraft-cli mcp --connect 7979                               # MCP bridged to a running window

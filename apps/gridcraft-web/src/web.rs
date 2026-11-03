@@ -96,7 +96,8 @@ pub fn start() {
                         }
                         bridge.post_ready();
                     }
-                    Ok(Box::new(WebShell { app, inbox, bridge: app_bridge, prefs }))
+                    let agent = crate::agent::Bridge::install(cc.egui_ctx.clone());
+                    Ok(Box::new(WebShell { app, inbox, bridge: app_bridge, prefs, agent }))
                 }),
             )
             .await;
@@ -121,6 +122,7 @@ fn query_param(key: &str) -> Option<String> {
 }
 
 struct WebShell {
+    agent: crate::agent::Bridge,
     app: SheetApp,
     inbox: Inbox,
     bridge: Option<crate::host::Bridge>,
@@ -154,6 +156,7 @@ impl eframe::App for WebShell {
             });
         }
         self.app.logic(ctx);
+        self.agent.tick(&mut self.app, ctx);
         // Store changed preferences straight away: a reload or closed tab runs no exit code (#1562).
         let changed = self.prefs.changed(&self.app);
         if !changed.is_empty() {
@@ -172,6 +175,10 @@ impl eframe::App for WebShell {
 
     /// Forwards a browser frame's raw input to the shared app before eframe handles it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if self.agent.busy {
+            raw.events.clear();
+            raw.dropped_files.clear();
+        }
         self.app.raw_input_hook(ctx, raw);
     }
 

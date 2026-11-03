@@ -1,6 +1,6 @@
 # Architecture
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-25 · **Change:** trivial (the hidden names that hold macros; earlier: macro engine on the engine building blocks) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-11-03 · **Change:** minor (live browser Agent command bridge) · **Target:** Microsoft Excel (Microsoft 365)
 
 How GridCraft is built today. Rules for contributors are in [`AGENTS.md`](../AGENTS.md).
 
@@ -48,6 +48,16 @@ including tests, 2026-10-10.
    for the visible window only; charts render through `crates/chart` primitives.
 5. **Files**: `engine/io.rs` sniffs content (XLSX, XLSB, ODS) before trusting the extension and
    dispatches to `crates/xlsx`; imports that lose data return warnings shown to the user.
+
+## Browser Agent bridge
+
+`apps/gridcraft-web/src/agent.rs` provides a same-window, same-origin `postMessage` bridge for a hosting site's Agent sidebar. It edits the active `SheetApp` through existing engine commands; it does not create a background workbook or a network MCP endpoint. The host owns account authentication, model requests, queueing, connection timeouts and the sidebar UI.
+
+Requests use `amaranton:agent:request` with a JSON string `payload` containing `id`, `session`, `method` and `params`. Replies use `amaranton:agent:reply` and return `id`, `ok`, `result` or `error`, and the current document revision. The native bridge bounds request payloads to 128 KiB, queues at most 16 requests and caches the last 128 replies by request ID to avoid repeating mutations after a lost reply.
+
+`begin` snapshots `DocState` and pauses manual canvas input. Within that session, `inspect`, `read`, `commands` and whitelisted `execute` operations act on the visible document. `end` releases input; `undo` restores the starting snapshot only when document identity and revision still match. A later manual edit or document switch rejects stale actions and snapshot restoration. `save` invokes the editor's existing file flow while idle; the host exposes it as a user action, outside the model's editing tools.
+
+The browser bridge is available to scripts already running on the same origin, not an authorization boundary between those scripts. Server-side ownership and CSRF checks remain the hosting site's responsibility. The whitelist intentionally excludes file opening, external URLs and arbitrary code execution. Browser verification covered actual WASM edits, a SUM formula, chart insertion, duplicate IDs, session rejection, stop, revision conflict and snapshot undo; the hosting site separately verified XLSX export and Safari-compatible startup.
 
 ## UI building blocks
 
@@ -159,6 +169,7 @@ rpm, tarball), FreeBSD, and web (WASM; WebGPU or WebGL2). Release workflows in
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-03 | minor | Live browser Agent bridge: active-document edits, bounded requests, idempotent replies and revision-checked snapshots |
 | 2026-10-25 | trivial | The hidden names that hold macros are `_gc_macro_<n>_<k>` |
 | 2026-10-24 | minor | Macro engine on the building blocks (`macros/`, `cmd/macros.rs`) |
 | 2026-10-24 | minor | Engine building blocks for multi-command actions: undo groups, recording buffer, document trust, chunked hidden-name storage |
